@@ -1,0 +1,9 @@
+ID,ชื่ออุปกรณ์,หมวด,ราคา (บาท),คนออกเงิน,เจ้าของ,สถานะ,วันที่ซื้อ,เหตุการณ์สำคัญที่ทำให้ซื้อ
+BE-001,set ESP32,package set,230,ภูมิ,ภูมิ,O,XX/04/2569,อยากพัฒนา skill ด้าน electronic
+BE-002,สายไฟแข็ง,electronic,120,ภูมิ,ภูมิ,O - 2,XX/05/2569,สาย jumper กากเกิน
+BE-003,กล่องใส่อุปกรณ์ electronic,generic tools,78,ภูมิ,BE4,O,XX/05/2569,เก็บอุปกรณ์ electronic
+BE-004,Cutter Deli - 18,generic tools,85 ( รวม 202 ),BE4,BE4,O,27/07/2569,"ใช้ตัดของ, ทำ model"
+BE-005,Cutter Deli - 9,generic tools,50 ( รวม 202 ),BE4,BE4,O,27/07/2569,"ใช้ตัดของ, ทำ model"
+BE-006,Cutter Deli - T9,generic tools,67 ( รวม 202 ),BE4,BE4,O,27/07/2569,"ใช้ตัดของ, ทำ model"
+BE-007,แผ่นรองตัด A3,generic tools,78,BE4,BE4,O,28/07/2569,รองการตัดของ cutter
+BE-008,ไขควงไฟฟ้า OSUKA OSHT2001,electronic tools,990,BE4,BE4,O,10/08/2569,อยากได้ ง่ายๆ เลย
