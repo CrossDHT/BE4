@@ -557,7 +557,6 @@
 const HEADERS = ["ID","ชื่ออุปกรณ์","หมวด","ราคา (บาท)","คนออกเงิน","เจ้าของ","สถานะ","วันที่ซื้อ","หมายเหตุ"];
 const NOTES_COL = "หมายเหตุ";
 const NUMERIC_COLS = new Set(["ราคา (บาท)"]);
-const LS_DATA = "brokeEngineer.data.v1";
 const LS_SETTINGS = "brokeEngineer.settings.v1";
 const LS_GITHUB = "brokeEngineer.github.v1";
 
@@ -691,8 +690,7 @@ function rowsFromTable(table){
   });
 }
 
-/* ============ PERSISTENCE ============ */
-function saveData(){ try{ localStorage.setItem(LS_DATA, JSON.stringify(state.rows)); }catch(e){} }
+/* ============ PERSISTENCE (global — GitHub-backed, no per-browser local copy) ============ */
 function saveSettings(){ try{ localStorage.setItem(LS_SETTINGS, JSON.stringify(state.settings)); }catch(e){} }
 
 let githubConfig = {owner:"", repo:"", branch:"main", path:"data.csv", token:""};
@@ -712,13 +710,49 @@ function guessGithubDefaults(){
     if(!githubConfig.repo && parts[0]) githubConfig.repo = parts[0];
   }
 }
-let saveTimer = null;
-function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveData, 400); }
+
+let lastGlobalWarnAt = 0;
+function warnGlobalSaveNotConfigured(){
+  const now = Date.now();
+  if(now - lastGlobalWarnAt < 8000) return;
+  lastGlobalWarnAt = now;
+  toast("ยังไม่ได้ตั้งค่า GitHub — ข้อมูลจะยังไม่ถูกบันทึกแบบ global จนกว่าจะตั้งค่าใน \"อัปขึ้น GitHub\"");
+}
+let globalSaveTimer = null;
+function scheduleSave(){
+  clearTimeout(globalSaveTimer);
+  globalSaveTimer = setTimeout(saveData, 1500);
+}
+async function saveData(){
+  const cfg = githubConfig;
+  if(!(cfg.owner && cfg.repo && cfg.token)){
+    warnGlobalSaveNotConfigured();
+    return;
+  }
+  try{
+    await commitCsvToGithub(cfg);
+  }catch(err){
+    console.error(err);
+    toast("บันทึกข้อมูล global ไม่สำเร็จ: " + (err.message || ""));
+  }
+}
 
 async function loadDataInitial(){
-  const cached = localStorage.getItem(LS_DATA);
-  if(cached){
-    try{ const arr = JSON.parse(cached); if(Array.isArray(arr) && arr.length){ dataSource="local"; return arr; } }catch(e){}
+  const cfg = githubConfig;
+  if(cfg.owner && cfg.repo){
+    try{
+      const branch = cfg.branch || "main";
+      const path = cfg.path || "data.csv";
+      const apiUrl = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(branch)}`;
+      const headers = {Accept: "application/vnd.github.raw+json"};
+      if(cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
+      const res = await fetch(apiUrl, {headers, cache:"no-store"});
+      if(res.ok){
+        const text = await res.text();
+        const table = parseCSV(text);
+        if(table.length>1){ dataSource="github"; return rowsFromTable(table); }
+      }
+    }catch(e){ /* fall through to the static file */ }
   }
   try{
     const res = await fetch("./data.csv", {cache:"no-store"});
@@ -1516,13 +1550,14 @@ function buildSettingsPanelStatic(){
 
   document.getElementById("resetDefaultsBtn").addEventListener("click", async () => {
     if(!confirm("รีเซ็ตข้อมูลอุปกรณ์และธีมทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่? การเปลี่ยนแปลงที่บันทึกไว้ในเบราว์เซอร์นี้จะหายไป")) return;
-    localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_SETTINGS);
+    localStorage.removeItem(LS_SETTINGS);
     state.rows = rowsFromTable(parseCSV(DEFAULT_CSV));
     state.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     dataSource = "embedded";
     applyTheme(state.settings.theme); applyWallpaper(); applyDensity();
     populateFilterOptions(); renderBody(); updateSettingsPanelUI();
-    toast("รีเซ็ตเป็นค่าเริ่มต้นแล้ว");
+    saveData();
+    toast("รีเซ็ตเป็นค่าเริ่มต้นแล้ว (กำลังบันทึกขึ้น global)");
   });
 }
 let settingsSaveTimer = null;
@@ -1620,9 +1655,9 @@ function wireStatsCarousel(){
 /* ============ INIT ============ */
 async function init(){
   state.settings = await loadSettingsInitial();
-  state.rows = await loadDataInitial();
   githubConfig = loadGithubConfig();
   guessGithubDefaults();
+  state.rows = await loadDataInitial();
 
   applyTheme(state.settings.theme);
   applyWallpaper();
