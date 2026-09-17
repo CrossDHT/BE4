@@ -280,6 +280,40 @@
     text-align:center; margin-top:26px; font-size:12px; color:var(--text-dim); font-family:var(--font-mono);
   }
 
+  /* ===================== CUSTOM KEYBOARD (temp01, experimental) ===================== */
+  .vkb{
+    position:fixed; left:0; right:0; bottom:0; z-index:35;
+    background:var(--raised); border-top:1px solid var(--border);
+    padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
+    transform:translateY(110%); transition:transform .22s ease;
+    box-shadow:0 -6px 20px rgba(0,0,0,.25);
+    -webkit-user-select:none; user-select:none;
+  }
+  .vkb.open{transform:translateY(0);}
+  .vkb-rows{display:flex; flex-direction:column; gap:5px; margin-bottom:6px;}
+  .vkb-row{display:flex; gap:4px;}
+  .vkbKey{
+    flex:1; min-width:0; height:38px; border-radius:7px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--text); font-family:var(--font-body);
+    font-size:14px; display:flex; align-items:center; justify-content:center;
+    touch-action:manipulation;
+  }
+  .vkbKey:active{background:color-mix(in srgb, var(--accent) 20%, var(--surface2));}
+  .vkb-ctrl{display:flex; gap:4px; margin-top:5px;}
+  .vkbBtn{
+    flex:1; min-width:0; height:40px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--text); font-family:var(--font-body);
+    font-size:13px; font-weight:500; display:flex; align-items:center; justify-content:center;
+    touch-action:manipulation;
+  }
+  .vkbBtn:active{background:color-mix(in srgb, var(--accent) 20%, var(--surface2));}
+  .vkbBtn.active{border-color:var(--accent); color:var(--accent);}
+  .vkbWide{flex:1.4;}
+  .vkbSpace{flex:4;}
+  .vkbArrow{flex:1; font-size:15px;}
+  #vkbHideBtn{flex:1.6;}
+  #vkbEnterBtn{flex:1.6; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;}
+
   @media (max-width:720px){
     .app{padding:14px 10px 30px;}
     header.top{gap:12px; padding-bottom:14px; margin-bottom:14px;}
@@ -430,6 +464,13 @@
     <button class="btn" id="densityCompact" type="button">กระชับ</button>
   </div>
 
+  <div class="section-title">แป้นพิมพ์กำหนดเอง (ทดลอง temp01)</div>
+  <p class="sub" style="margin-bottom:8px;">แป้นพิมพ์ในตัวสำหรับมือถือ สลับ ไทย/EN ได้ และมีปุ่มลูกศรย้ายช่องแบบสเปรดชีต</p>
+  <div class="density-toggle">
+    <button class="btn" id="vkbOn" type="button">เปิด</button>
+    <button class="btn" id="vkbOff" type="button">ปิด</button>
+  </div>
+
   <div class="section-title">ข้อมูลอุปกรณ์ (CSV)</div>
   <div class="panel-actions">
     <button class="btn" id="importCsvBtn" type="button">เปิดไฟล์ CSV...</button>
@@ -486,6 +527,24 @@
   </div>
 </div>
 
+<div class="vkb" id="vkb">
+  <div class="vkb-rows" id="vkbRows"></div>
+  <div class="vkb-ctrl">
+    <button type="button" class="vkbBtn vkbWide" id="vkbLangBtn">ไทย</button>
+    <button type="button" class="vkbBtn vkbWide" id="vkbShiftBtn">⇧</button>
+    <button type="button" class="vkbBtn vkbSpace" id="vkbSpaceBtn">เว้นวรรค</button>
+    <button type="button" class="vkbBtn vkbWide" id="vkbBackBtn">⌫</button>
+  </div>
+  <div class="vkb-ctrl">
+    <button type="button" class="vkbBtn vkbWide" id="vkbHideBtn">ซ่อน ▾</button>
+    <button type="button" class="vkbBtn vkbArrow" id="vkbLeftBtn">◀</button>
+    <button type="button" class="vkbBtn vkbArrow" id="vkbUpBtn">▲</button>
+    <button type="button" class="vkbBtn vkbArrow" id="vkbDownBtn">▼</button>
+    <button type="button" class="vkbBtn vkbArrow" id="vkbRightBtn">▶</button>
+    <button type="button" class="vkbBtn vkbWide" id="vkbEnterBtn">↵ ตกลง</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -513,7 +572,7 @@ BE-008,ไขควงไฟฟ้า OSUKA OSHT2001,electronic tools,990,BE4,BE
 
 const DEFAULT_SETTINGS = {
   theme:"dark-circuit", wallpaper:"circuit", wallpaperOpacity:0.15,
-  customWallpaperImage:null, density:"compact", updatedAt:null
+  customWallpaperImage:null, density:"compact", customKeyboard:true, updatedAt:null
 };
 
 const THEMES = [
@@ -531,6 +590,38 @@ const WALLPAPERS = [
 let uidCounter = 1;
 function uid(){ return "r" + (uidCounter++) + "_" + Math.random().toString(36).slice(2,8); }
 function slug(h){ return h.replace(/[^a-zA-Zก-๙0-9]/g,"").toLowerCase(); }
+
+/* ============ CUSTOM KEYBOARD (temp01, experimental) — layout data ============ */
+const VKB_LAYOUTS = {
+  en: {
+    base: [
+      ["1","2","3","4","5","6","7","8","9","0","-","="],
+      ["q","w","e","r","t","y","u","i","o","p","[","]"],
+      ["a","s","d","f","g","h","j","k","l",";","'"],
+      ["z","x","c","v","b","n","m",",",".","/"],
+    ],
+    shift: [
+      ["!","@","#","$","%","^","&","*","(",")","_","+"],
+      ["Q","W","E","R","T","Y","U","I","O","P","{","}"],
+      ["A","S","D","F","G","H","J","K","L",":","\""],
+      ["Z","X","C","V","B","N","M","<",">","?"],
+    ],
+  },
+  th: {
+    base: [
+      ["ๅ","/","-","ภ","ถ","ุ","ึ","ค","ต","จ","ข","ช"],
+      ["ๆ","ไ","ำ","พ","ะ","ั","ี","ร","น","ย","บ","ล"],
+      ["ฟ","ห","ก","ด","เ","้","่","า","ส","ว","ง"],
+      ["ผ","ป","แ","อ","ิ","ื","ท","ม","ใ","ฝ"],
+    ],
+    shift: [
+      ["+","๑","๒","๓","๔","ู","฿","๕","๖","๗","๘","๙"],
+      ["๐","\"","ฎ","ฑ","ธ","ํ","๊","ณ","ฯ","ญ","ฐ",","],
+      ["ฤ","ฆ","ฏ","โ","ฌ","็","๋","ษ","ศ","ซ","."],
+      ["(",")","ฉ","ฮ","ฺ","์","?","ฒ","ฬ","ฦ"],
+    ],
+  },
+};
 
 const state = {
   rows: [],
@@ -907,6 +998,116 @@ function moveFocus(currentTd, dRow, dCol){
   if(targetTd){ targetTd.focus(); placeCaretEnd(targetTd); }
 }
 
+/* ============ CUSTOM KEYBOARD (temp01, experimental) ============ */
+let vkbTarget = null;
+let vkbLang = "th";
+let vkbShift = false;
+function isMobileViewport(){ return window.matchMedia("(max-width:720px)").matches; }
+function isVkbEditable(el){
+  return !!el && ((el.classList && el.classList.contains("editable")) || el.id === "noteTextarea");
+}
+function renderVKBKeys(){
+  const layout = VKB_LAYOUTS[vkbLang][vkbShift ? "shift" : "base"];
+  const rowsEl = document.getElementById("vkbRows");
+  rowsEl.innerHTML = "";
+  layout.forEach(row => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "vkb-row";
+    row.forEach(ch => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "vkbKey";
+      btn.textContent = ch;
+      btn.addEventListener("pointerdown", e => { e.preventDefault(); vkbInsert(ch); });
+      rowEl.appendChild(btn);
+    });
+    rowsEl.appendChild(rowEl);
+  });
+  document.getElementById("vkbLangBtn").textContent = vkbLang === "th" ? "ไทย" : "EN";
+  document.getElementById("vkbShiftBtn").classList.toggle("active", vkbShift);
+}
+function activateVKB(target){
+  if(!isMobileViewport() || state.settings.customKeyboard === false) return;
+  vkbTarget = target;
+  target.setAttribute("inputmode", "none");
+  document.getElementById("vkb").classList.add("open");
+}
+function deactivateVKB(){
+  if(vkbTarget) vkbTarget.removeAttribute("inputmode");
+  vkbTarget = null;
+  document.getElementById("vkb").classList.remove("open");
+}
+function vkbInsert(text){
+  if(!vkbTarget) return;
+  vkbTarget.focus();
+  document.execCommand("insertText", false, text);
+  if(vkbShift){ vkbShift = false; renderVKBKeys(); }
+}
+function vkbBackspace(){
+  if(!vkbTarget) return;
+  vkbTarget.focus();
+  document.execCommand("delete", false, null);
+}
+function moveCaretInTextarea(ta, dRow, dCol){
+  const val = ta.value;
+  let pos = ta.selectionStart ?? val.length;
+  if(dCol !== 0){
+    pos = Math.max(0, Math.min(val.length, pos + dCol));
+  } else if(dRow !== 0){
+    const before = val.slice(0, pos);
+    const beforeLines = before.split("\n");
+    const col = beforeLines[beforeLines.length - 1].length;
+    const allLines = val.split("\n");
+    const curLineIdx = beforeLines.length - 1;
+    const targetLineIdx = Math.max(0, Math.min(allLines.length - 1, curLineIdx + dRow));
+    const targetLine = allLines[targetLineIdx];
+    const targetCol = Math.min(col, targetLine.length);
+    pos = allLines.slice(0, targetLineIdx).reduce((sum,l)=>sum+l.length+1, 0) + targetCol;
+  }
+  ta.setSelectionRange(pos, pos);
+}
+function vkbArrow(dRow, dCol){
+  if(!vkbTarget) return;
+  if(vkbTarget.classList.contains("editable")) moveFocus(vkbTarget, dRow, dCol);
+  else if(vkbTarget.id === "noteTextarea") moveCaretInTextarea(vkbTarget, dRow, dCol);
+}
+function vkbEnter(){
+  if(!vkbTarget) return;
+  if(vkbTarget.classList.contains("editable")) moveFocus(vkbTarget, 1, 0);
+  else vkbInsert("\n");
+}
+function wireVKB(){
+  renderVKBKeys();
+  document.getElementById("vkbLangBtn").addEventListener("pointerdown", e => {
+    e.preventDefault();
+    vkbLang = vkbLang === "th" ? "en" : "th";
+    renderVKBKeys();
+  });
+  document.getElementById("vkbShiftBtn").addEventListener("pointerdown", e => {
+    e.preventDefault();
+    vkbShift = !vkbShift;
+    renderVKBKeys();
+  });
+  document.getElementById("vkbSpaceBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbInsert(" "); });
+  document.getElementById("vkbBackBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbBackspace(); });
+  document.getElementById("vkbEnterBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbEnter(); });
+  document.getElementById("vkbLeftBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(0,-1); });
+  document.getElementById("vkbRightBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(0,1); });
+  document.getElementById("vkbUpBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(-1,0); });
+  document.getElementById("vkbDownBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(1,0); });
+  document.getElementById("vkbHideBtn").addEventListener("pointerdown", e => {
+    e.preventDefault();
+    const t = vkbTarget;
+    deactivateVKB();
+    if(t) t.blur();
+  });
+  document.addEventListener("focusin", e => {
+    const t = e.target;
+    if(isVkbEditable(t)) activateVKB(t);
+    else if(!t.closest || !t.closest("#vkb")) deactivateVKB();
+  });
+}
+
 /* ============ EVENT WIRING ============ */
 function wireTableEvents(){
   const tbody = document.getElementById("sheetBody");
@@ -1226,6 +1427,9 @@ function buildSettingsPanelStatic(){
   document.getElementById("densityComfortable").addEventListener("click", () => setDensity("comfortable"));
   document.getElementById("densityCompact").addEventListener("click", () => setDensity("compact"));
 
+  document.getElementById("vkbOn").addEventListener("click", () => setCustomKeyboard(true));
+  document.getElementById("vkbOff").addEventListener("click", () => setCustomKeyboard(false));
+
   document.getElementById("resetDefaultsBtn").addEventListener("click", async () => {
     if(!confirm("รีเซ็ตข้อมูลอุปกรณ์และธีมทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่? การเปลี่ยนแปลงที่บันทึกไว้ในเบราว์เซอร์นี้จะหายไป")) return;
     localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_SETTINGS);
@@ -1244,12 +1448,19 @@ function setDensity(d){
   state.settings.density = d;
   applyDensity(); saveSettings(); updateSettingsPanelUI();
 }
+function setCustomKeyboard(on){
+  state.settings.customKeyboard = on;
+  if(!on) deactivateVKB();
+  saveSettings(); updateSettingsPanelUI();
+}
 function updateSettingsPanelUI(){
   document.querySelectorAll("#themeGrid [data-theme-id]").forEach(b => b.classList.toggle("active", b.dataset.themeId === state.settings.theme));
   document.querySelectorAll("#wallpaperGrid [data-wall-id]").forEach(b => b.classList.toggle("active", b.dataset.wallId === state.settings.wallpaper));
   document.getElementById("opacityRange").value = state.settings.wallpaperOpacity ?? 0.8;
   document.getElementById("densityComfortable").classList.toggle("active", state.settings.density !== "compact");
   document.getElementById("densityCompact").classList.toggle("active", state.settings.density === "compact");
+  document.getElementById("vkbOn").classList.toggle("active", state.settings.customKeyboard !== false);
+  document.getElementById("vkbOff").classList.toggle("active", state.settings.customKeyboard === false);
 }
 
 function openSettings(){
@@ -1292,6 +1503,7 @@ function closeNoteModal(save){
   document.getElementById("noteModal").classList.remove("open");
   document.getElementById("noteOverlay").classList.remove("open");
   currentNoteRowUid = null;
+  if(vkbTarget && vkbTarget.id === "noteTextarea") deactivateVKB();
 }
 
 /* ============ STATS CAROUSEL (mobile) ============ */
@@ -1339,6 +1551,7 @@ async function init(){
   renderBody();
   wireTableEvents();
   wireToolbarEvents();
+  wireVKB();
   buildStatsDots();
   wireStatsCarousel();
 
