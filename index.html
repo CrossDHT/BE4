@@ -137,6 +137,7 @@
   .btn.primary{background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;}
   .btn.primary:hover{filter:brightness(1.06);}
   .btn.ghost{background:transparent;}
+  .toolbar-actions{display:flex; gap:8px;}
 
   /* ===================== TABLE ===================== */
   .table-wrap{
@@ -223,12 +224,13 @@
   }
   .overlay.open{opacity:1; pointer-events:auto;}
   .panel{
-    position:fixed; top:0; right:0; height:100%; width:min(380px,92vw);
-    background:var(--surface); border-left:1px solid var(--border);
-    z-index:11; transform:translateX(100%); transition:transform .25s ease;
-    overflow-y:auto; padding:22px 20px 40px;
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.96);
+    width:min(480px,92vw); max-height:86vh;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-l);
+    z-index:11; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+    overflow-y:auto; padding:22px 20px 30px;
   }
-  .panel.open{transform:translateX(0);}
+  .panel.open{opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1);}
   .panel h2{font-family:var(--font-display); font-size:19px; margin:0 0 4px;}
   .panel .sub{color:var(--text-dim); font-size:13px; margin:0 0 20px;}
   .panel-close{
@@ -299,7 +301,8 @@
     .toolbar-row{width:100%; flex:none;}
     .search-wrap{flex:1;}
     .btn.kebabBtn{display:inline-flex; width:46px; height:46px; padding:0; justify-content:center; flex:0 0 auto;}
-    #addRowBtn{width:100%; justify-content:center;}
+    .toolbar-actions{width:100%;}
+    .toolbar-actions .btn{flex:1; justify-content:center;}
 
     .filterPanel{
       position:fixed; left:0; right:0; bottom:0; z-index:12;
@@ -368,10 +371,16 @@
       <select class="filterSelect" id="filterStatus"><option value="__all__">ทุกสถานะ</option></select>
     </div>
     <div class="spacer"></div>
-    <button class="btn primary" id="addRowBtn" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      เพิ่มอุปกรณ์
-    </button>
+    <div class="toolbar-actions">
+      <button class="btn" id="saveFileBtn" type="button" title="บันทึกทับไฟล์ CSV">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        บันทึกไฟล์
+      </button>
+      <button class="btn primary" id="addRowBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        เพิ่มอุปกรณ์
+      </button>
+    </div>
   </div>
   <div class="overlay" id="filterOverlay"></div>
 
@@ -413,9 +422,10 @@
 
   <div class="section-title">ข้อมูลอุปกรณ์ (CSV)</div>
   <div class="panel-actions">
-    <button class="btn" id="exportCsvBtn" type="button">ดาวน์โหลด CSV</button>
-    <button class="btn" id="importCsvBtn" type="button">นำเข้า CSV</button>
+    <button class="btn" id="importCsvBtn" type="button">เปิดไฟล์ CSV...</button>
+    <button class="btn" id="exportCsvBtn" type="button">ดาวน์โหลดสำเนา CSV</button>
   </div>
+  <p class="sub" id="fileBindStatus" style="margin-top:8px; font-family:var(--font-mono); font-size:11.5px;"></p>
 
   <div class="section-title">รีเซ็ต</div>
   <div class="panel-actions">
@@ -492,6 +502,8 @@ const state = {
   filterStatus: "__all__",
 };
 let dataSource = "embedded";
+let currentFileHandle = null;
+const supportsFSAccess = typeof window.showSaveFilePicker === "function" && typeof window.showOpenFilePicker === "function";
 
 /* ============ CSV HELPERS ============ */
 function parseCSV(text){
@@ -877,20 +889,88 @@ function wireToolbarEvents(){
 
   document.getElementById("exportCsvBtn").addEventListener("click", () => {
     downloadText(toCSV(HEADERS, state.rows), "data.csv", "text/csv;charset=utf-8");
-    toast("ดาวน์โหลด data.csv แล้ว");
+    toast("ดาวน์โหลดสำเนา data.csv แล้ว");
   });
-  document.getElementById("importCsvBtn").addEventListener("click", () => document.getElementById("csvFileInput").click());
+  document.getElementById("importCsvBtn").addEventListener("click", openCsvFile);
   document.getElementById("csvFileInput").addEventListener("change", async e => {
     const file = e.target.files[0]; if(!file) return;
     const text = await file.text();
-    const table = parseCSV(text);
-    if(!table.length){ toast("ไฟล์ CSV ว่างเปล่า"); return; }
-    state.rows = rowsFromTable(table);
-    dataSource = "local";
-    saveData(); populateFilterOptions(); renderBody();
-    toast(`นำเข้าข้อมูลสำเร็จ (${state.rows.length} รายการ)`);
+    applyImportedCsvText(text);
     e.target.value = "";
   });
+  document.getElementById("saveFileBtn").addEventListener("click", saveToFile);
+}
+
+function applyImportedCsvText(text){
+  const table = parseCSV(text);
+  if(!table.length){ toast("ไฟล์ CSV ว่างเปล่า"); return; }
+  state.rows = rowsFromTable(table);
+  dataSource = "local";
+  saveData(); populateFilterOptions(); renderBody();
+  toast(`นำเข้าข้อมูลสำเร็จ (${state.rows.length} รายการ)`);
+}
+
+/* ============ REAL FILE SAVE (File System Access API) ============ */
+function updateFileBindStatus(){
+  const el = document.getElementById("fileBindStatus");
+  if(!el) return;
+  if(currentFileHandle) el.textContent = `ผูกไฟล์อยู่: ${currentFileHandle.name} — กด "บันทึกไฟล์" จะบันทึกทับไฟล์นี้`;
+  else if(!supportsFSAccess) el.textContent = "เบราว์เซอร์นี้ไม่รองรับการบันทึกทับไฟล์โดยตรง จะดาวน์โหลดไฟล์ใหม่แทน";
+  else el.textContent = "ยังไม่ได้ผูกไฟล์ — กด \"บันทึกไฟล์\" ครั้งแรกเพื่อเลือกตำแหน่งไฟล์";
+}
+async function ensureWritePermission(handle){
+  const opts = {mode:"readwrite"};
+  if((await handle.queryPermission(opts)) === "granted") return true;
+  if((await handle.requestPermission(opts)) === "granted") return true;
+  return false;
+}
+async function saveToFile(){
+  const csv = toCSV(HEADERS, state.rows);
+  if(!supportsFSAccess){
+    downloadText(csv, "data.csv", "text/csv;charset=utf-8");
+    toast("เบราว์เซอร์นี้ไม่รองรับการบันทึกทับไฟล์ — ดาวน์โหลด data.csv แทน");
+    return;
+  }
+  try{
+    if(!currentFileHandle){
+      currentFileHandle = await window.showSaveFilePicker({
+        suggestedName: "data.csv",
+        types: [{description:"CSV", accept:{"text/csv":[".csv"]}}]
+      });
+      updateFileBindStatus();
+    }
+    if(!(await ensureWritePermission(currentFileHandle))){
+      toast("ไม่ได้รับสิทธิ์เขียนไฟล์");
+      return;
+    }
+    const writable = await currentFileHandle.createWritable();
+    await writable.write(csv);
+    await writable.close();
+    toast(`บันทึกทับไฟล์ ${currentFileHandle.name} แล้ว`);
+  }catch(err){
+    if(err && err.name === "AbortError") return;
+    console.error(err);
+    toast("บันทึกไฟล์ไม่สำเร็จ");
+  }
+}
+async function openCsvFile(){
+  if(supportsFSAccess){
+    try{
+      const [handle] = await window.showOpenFilePicker({
+        types: [{description:"CSV", accept:{"text/csv":[".csv"]}}]
+      });
+      const file = await handle.getFile();
+      const text = await file.text();
+      currentFileHandle = handle;
+      updateFileBindStatus();
+      applyImportedCsvText(text);
+      toast(`เปิดไฟล์ ${handle.name} แล้ว — กด "บันทึกไฟล์" เพื่อบันทึกทับไฟล์นี้`);
+      return;
+    }catch(err){
+      if(err && err.name === "AbortError") return;
+    }
+  }
+  document.getElementById("csvFileInput").click();
 }
 
 function downloadText(text, filename, mime){
@@ -1093,10 +1173,11 @@ async function init(){
   document.addEventListener("keydown", e => {
     if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="s"){
       e.preventDefault();
-      downloadText(toCSV(HEADERS, state.rows), "data.csv", "text/csv;charset=utf-8");
-      toast("ดาวน์โหลด data.csv แล้ว");
+      saveToFile();
     }
   });
+
+  updateFileBindStatus();
 }
 init();
 
