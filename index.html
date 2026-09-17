@@ -284,35 +284,37 @@
   .vkb{
     position:fixed; left:0; right:0; bottom:0; z-index:35;
     background:var(--raised); border-top:1px solid var(--border);
-    padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
+    padding:2px 5px calc(6px + env(safe-area-inset-bottom,0px));
     transform:translateY(110%); transition:transform .22s ease;
     box-shadow:0 -6px 20px rgba(0,0,0,.25);
     -webkit-user-select:none; user-select:none;
   }
   .vkb.open{transform:translateY(0);}
-  .vkb-rows{display:flex; flex-direction:column; gap:5px; margin-bottom:6px;}
-  .vkb-row{display:flex; gap:4px;}
+  .vkb-handle{display:flex; align-items:center; justify-content:center; height:20px; cursor:pointer; touch-action:none;}
+  .vkb-handle span{width:34px; height:4px; border-radius:3px; background:var(--border);}
+  .vkb-rows{display:flex; flex-direction:column; gap:4px; margin-bottom:4px;}
+  .vkb-row{display:flex; gap:3px;}
+  .vkb-row:nth-child(2){margin-left:2%; margin-right:2%;}
+  .vkb-row:nth-child(3){margin-left:5%; margin-right:5%;}
   .vkbKey{
-    flex:1; min-width:0; height:38px; border-radius:7px; border:1px solid var(--border);
+    flex:1; min-width:0; height:34px; border-radius:6px; border:1px solid var(--border);
     background:var(--surface2); color:var(--text); font-family:var(--font-body);
-    font-size:14px; display:flex; align-items:center; justify-content:center;
+    font-size:13.5px; display:flex; align-items:center; justify-content:center;
     touch-action:manipulation;
   }
   .vkbKey:active{background:color-mix(in srgb, var(--accent) 20%, var(--surface2));}
-  .vkb-ctrl{display:flex; gap:4px; margin-top:5px;}
+  .vkb-ctrl{display:flex; gap:3px;}
   .vkbBtn{
-    flex:1; min-width:0; height:40px; border-radius:8px; border:1px solid var(--border);
+    flex:1; min-width:0; height:38px; border-radius:7px; border:1px solid var(--border);
     background:var(--surface2); color:var(--text); font-family:var(--font-body);
-    font-size:13px; font-weight:500; display:flex; align-items:center; justify-content:center;
-    touch-action:manipulation;
+    font-size:12.5px; font-weight:500; display:flex; align-items:center; justify-content:center;
+    touch-action:none;
   }
   .vkbBtn:active{background:color-mix(in srgb, var(--accent) 20%, var(--surface2));}
   .vkbBtn.active{border-color:var(--accent); color:var(--accent);}
-  .vkbWide{flex:1.4;}
-  .vkbSpace{flex:4;}
-  .vkbArrow{flex:1; font-size:15px;}
-  #vkbHideBtn{flex:1.6;}
-  #vkbEnterBtn{flex:1.6; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;}
+  .vkbBtn.disabled{opacity:.4; pointer-events:none;}
+  .vkbSpace{flex:5; font-size:11px; color:var(--text-dim); white-space:nowrap; overflow:hidden;}
+  #vkbEnterBtn{flex:1.3; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600; font-size:16px;}
 
   @media (max-width:720px){
     .app{padding:14px 10px 30px;}
@@ -528,20 +530,15 @@
 </div>
 
 <div class="vkb" id="vkb">
+  <div class="vkb-handle" id="vkbHandle"><span></span></div>
   <div class="vkb-rows" id="vkbRows"></div>
   <div class="vkb-ctrl">
-    <button type="button" class="vkbBtn vkbWide" id="vkbLangBtn">ไทย</button>
-    <button type="button" class="vkbBtn vkbWide" id="vkbShiftBtn">⇧</button>
-    <button type="button" class="vkbBtn vkbSpace" id="vkbSpaceBtn">เว้นวรรค</button>
-    <button type="button" class="vkbBtn vkbWide" id="vkbBackBtn">⌫</button>
-  </div>
-  <div class="vkb-ctrl">
-    <button type="button" class="vkbBtn vkbWide" id="vkbHideBtn">ซ่อน ▾</button>
-    <button type="button" class="vkbBtn vkbArrow" id="vkbLeftBtn">◀</button>
-    <button type="button" class="vkbBtn vkbArrow" id="vkbUpBtn">▲</button>
-    <button type="button" class="vkbBtn vkbArrow" id="vkbDownBtn">▼</button>
-    <button type="button" class="vkbBtn vkbArrow" id="vkbRightBtn">▶</button>
-    <button type="button" class="vkbBtn vkbWide" id="vkbEnterBtn">↵ ตกลง</button>
+    <button type="button" class="vkbBtn" id="vkbNumBtn">123</button>
+    <button type="button" class="vkbBtn" id="vkbShiftBtn">⇧</button>
+    <button type="button" class="vkbBtn" id="vkbLangBtn">ไทย</button>
+    <button type="button" class="vkbBtn vkbSpace" id="vkbSpaceBtn">เว้นวรรค ⇄ ปัดเลื่อน</button>
+    <button type="button" class="vkbBtn" id="vkbBackBtn">⌫</button>
+    <button type="button" class="vkbBtn" id="vkbEnterBtn">↵</button>
   </div>
 </div>
 
@@ -622,6 +619,13 @@ const VKB_LAYOUTS = {
     ],
   },
 };
+const VKB_NUMBERS = [
+  ["1","2","3","4","5","6","7","8","9","0"],
+  ["-","/",":",";","(",")","฿","&","@","\""],
+  [".",",","?","!","'","*","#","%","+","="],
+];
+const VKB_COMBINING = new Set(["ั","ิ","ี","ึ","ื","ุ","ู","่","้","๊","๋","็","์","ํ"]);
+function vkbLabel(ch){ return VKB_COMBINING.has(ch) ? "◌"+ch : ch; }
 
 const state = {
   rows: [],
@@ -1002,12 +1006,13 @@ function moveFocus(currentTd, dRow, dCol){
 let vkbTarget = null;
 let vkbLang = "th";
 let vkbShift = false;
+let vkbPage = "letters"; // "letters" | "numbers"
 function isMobileViewport(){ return window.matchMedia("(max-width:720px)").matches; }
 function isVkbEditable(el){
   return !!el && ((el.classList && el.classList.contains("editable")) || el.id === "noteTextarea");
 }
 function renderVKBKeys(){
-  const layout = VKB_LAYOUTS[vkbLang][vkbShift ? "shift" : "base"];
+  const layout = vkbPage === "numbers" ? VKB_NUMBERS : VKB_LAYOUTS[vkbLang][vkbShift ? "shift" : "base"];
   const rowsEl = document.getElementById("vkbRows");
   rowsEl.innerHTML = "";
   layout.forEach(row => {
@@ -1017,14 +1022,17 @@ function renderVKBKeys(){
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "vkbKey";
-      btn.textContent = ch;
+      btn.textContent = vkbLabel(ch);
       btn.addEventListener("pointerdown", e => { e.preventDefault(); vkbInsert(ch); });
       rowEl.appendChild(btn);
     });
     rowsEl.appendChild(rowEl);
   });
   document.getElementById("vkbLangBtn").textContent = vkbLang === "th" ? "ไทย" : "EN";
+  document.getElementById("vkbLangBtn").classList.toggle("disabled", vkbPage === "numbers");
   document.getElementById("vkbShiftBtn").classList.toggle("active", vkbShift);
+  document.getElementById("vkbShiftBtn").classList.toggle("disabled", vkbPage === "numbers");
+  document.getElementById("vkbNumBtn").textContent = vkbPage === "numbers" ? (vkbLang === "th" ? "กข" : "ABC") : "123";
 }
 function activateVKB(target){
   if(!isMobileViewport() || state.settings.customKeyboard === false) return;
@@ -1041,7 +1049,7 @@ function vkbInsert(text){
   if(!vkbTarget) return;
   vkbTarget.focus();
   document.execCommand("insertText", false, text);
-  if(vkbShift){ vkbShift = false; renderVKBKeys(); }
+  if(vkbShift && vkbPage === "letters"){ vkbShift = false; renderVKBKeys(); }
 }
 function vkbBackspace(){
   if(!vkbTarget) return;
@@ -1076,31 +1084,86 @@ function vkbEnter(){
   if(vkbTarget.classList.contains("editable")) moveFocus(vkbTarget, 1, 0);
   else vkbInsert("\n");
 }
+
+let vkbBackspaceTimer = null;
+function startBackspaceRepeat(){
+  vkbBackspace();
+  clearTimeout(vkbBackspaceTimer);
+  vkbBackspaceTimer = setTimeout(function repeat(){
+    vkbBackspace();
+    vkbBackspaceTimer = setTimeout(repeat, 60);
+  }, 420);
+}
+function stopBackspaceRepeat(){ clearTimeout(vkbBackspaceTimer); vkbBackspaceTimer = null; }
+
+let vkbSpaceGesture = null;
+const VKB_SWIPE_STEP = 22;
+function onSpacePointerDown(e){
+  e.preventDefault();
+  e.currentTarget.setPointerCapture(e.pointerId);
+  vkbSpaceGesture = {startX:e.clientX, startY:e.clientY, lastX:e.clientX, lastY:e.clientY, moved:false};
+}
+function onSpacePointerMove(e){
+  if(!vkbSpaceGesture) return;
+  const dx = e.clientX - vkbSpaceGesture.lastX;
+  const dy = e.clientY - vkbSpaceGesture.lastY;
+  if(Math.abs(dx) > Math.abs(dy)){
+    if(Math.abs(dx) >= VKB_SWIPE_STEP){
+      vkbArrow(0, dx > 0 ? 1 : -1);
+      vkbSpaceGesture.lastX += dx > 0 ? VKB_SWIPE_STEP : -VKB_SWIPE_STEP;
+      vkbSpaceGesture.moved = true;
+    }
+  } else if(Math.abs(dy) >= VKB_SWIPE_STEP){
+    vkbArrow(dy > 0 ? 1 : -1, 0);
+    vkbSpaceGesture.lastY += dy > 0 ? VKB_SWIPE_STEP : -VKB_SWIPE_STEP;
+    vkbSpaceGesture.moved = true;
+  }
+}
+function onSpacePointerUp(e){
+  if(!vkbSpaceGesture) return;
+  const totalDx = Math.abs(e.clientX - vkbSpaceGesture.startX);
+  const totalDy = Math.abs(e.clientY - vkbSpaceGesture.startY);
+  if(!vkbSpaceGesture.moved && totalDx < 10 && totalDy < 10) vkbInsert(" ");
+  vkbSpaceGesture = null;
+}
 function wireVKB(){
   renderVKBKeys();
   document.getElementById("vkbLangBtn").addEventListener("pointerdown", e => {
     e.preventDefault();
+    if(vkbPage === "numbers") return;
     vkbLang = vkbLang === "th" ? "en" : "th";
     renderVKBKeys();
   });
   document.getElementById("vkbShiftBtn").addEventListener("pointerdown", e => {
     e.preventDefault();
+    if(vkbPage === "numbers") return;
     vkbShift = !vkbShift;
     renderVKBKeys();
   });
-  document.getElementById("vkbSpaceBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbInsert(" "); });
-  document.getElementById("vkbBackBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbBackspace(); });
+  document.getElementById("vkbNumBtn").addEventListener("pointerdown", e => {
+    e.preventDefault();
+    vkbPage = vkbPage === "numbers" ? "letters" : "numbers";
+    renderVKBKeys();
+  });
   document.getElementById("vkbEnterBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbEnter(); });
-  document.getElementById("vkbLeftBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(0,-1); });
-  document.getElementById("vkbRightBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(0,1); });
-  document.getElementById("vkbUpBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(-1,0); });
-  document.getElementById("vkbDownBtn").addEventListener("pointerdown", e => { e.preventDefault(); vkbArrow(1,0); });
-  document.getElementById("vkbHideBtn").addEventListener("pointerdown", e => {
+
+  const backBtn = document.getElementById("vkbBackBtn");
+  backBtn.addEventListener("pointerdown", e => { e.preventDefault(); startBackspaceRepeat(); });
+  ["pointerup","pointerleave","pointercancel"].forEach(ev => backBtn.addEventListener(ev, stopBackspaceRepeat));
+
+  const spaceBtn = document.getElementById("vkbSpaceBtn");
+  spaceBtn.addEventListener("pointerdown", onSpacePointerDown);
+  spaceBtn.addEventListener("pointermove", onSpacePointerMove);
+  spaceBtn.addEventListener("pointerup", onSpacePointerUp);
+  spaceBtn.addEventListener("pointercancel", () => { vkbSpaceGesture = null; });
+
+  document.getElementById("vkbHandle").addEventListener("pointerup", e => {
     e.preventDefault();
     const t = vkbTarget;
     deactivateVKB();
     if(t) t.blur();
   });
+
   document.addEventListener("focusin", e => {
     const t = e.target;
     if(isVkbEditable(t)) activateVKB(t);
