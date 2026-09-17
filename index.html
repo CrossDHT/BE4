@@ -374,6 +374,7 @@
       <h2 class="filterPanel-title">ตัวกรอง</h2>
       <select class="filterSelect" id="filterCategory"><option value="__all__">ทุกหมวด</option></select>
       <select class="filterSelect" id="filterStatus"><option value="__all__">ทุกสถานะ</option></select>
+      <select class="filterSelect" id="filterOwner"><option value="__all__">ทุกเจ้าของ</option></select>
     </div>
     <div class="spacer"></div>
     <div class="toolbar-actions">
@@ -436,15 +437,6 @@
   </div>
   <p class="sub" id="fileBindStatus" style="margin-top:8px; font-family:var(--font-mono); font-size:11.5px;"></p>
 
-  <div class="section-title">ซิงก์กับ GitHub (บันทึกทับไฟล์ในคลัง)</div>
-  <input type="text" class="ghInput" id="ghOwner" placeholder="เจ้าของ repo (owner) เช่น CrossDHT">
-  <input type="text" class="ghInput" id="ghRepo" placeholder="ชื่อ repo เช่น BE4">
-  <input type="text" class="ghInput" id="ghBranch" placeholder="branch (ค่าเริ่มต้น main)">
-  <input type="text" class="ghInput" id="ghPath" placeholder="พาธไฟล์ (ค่าเริ่มต้น data.csv)">
-  <input type="password" class="ghInput" id="ghToken" placeholder="Personal Access Token" autocomplete="off">
-  <button class="btn" id="saveGithubConfigBtn" type="button" style="width:100%;">บันทึกการตั้งค่า GitHub</button>
-  <p class="sub" style="font-size:11.5px; margin-top:8px;">Token จะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น แนะนำให้สร้าง Fine-grained token ที่จำกัดสิทธิ์เฉพาะ repo นี้ (Contents: Read and write) เท่านั้น</p>
-
   <div class="section-title">รีเซ็ต</div>
   <div class="panel-actions">
     <button class="btn ghost" id="resetDefaultsBtn" type="button" style="color:var(--danger); border-color:var(--danger);">รีเซ็ตข้อมูล + ธีมเป็นค่าเริ่มต้น</button>
@@ -464,6 +456,24 @@
     <button class="btn" id="noteModalCancel" type="button" style="flex:1;">ยกเลิก</button>
     <button class="btn primary" id="noteModalSave" type="button" style="flex:1;">บันทึก</button>
   </div>
+</div>
+
+<div class="overlay" id="githubOverlay"></div>
+<div class="note-modal" id="githubModal">
+  <button class="panel-close" id="githubModalClose" type="button" aria-label="ปิด">&times;</button>
+  <h2>ซิงก์กับ GitHub</h2>
+  <p class="sub">เชื่อมต่อบัญชีและ token เพื่อบันทึกทับไฟล์ CSV นี้ตรงเข้าคลัง GitHub ของคุณ</p>
+  <input type="text" class="ghInput" id="ghOwner" placeholder="เจ้าของ repo (owner) เช่น CrossDHT">
+  <input type="text" class="ghInput" id="ghRepo" placeholder="ชื่อ repo เช่น BE4">
+  <input type="text" class="ghInput" id="ghBranch" placeholder="branch (ค่าเริ่มต้น main)">
+  <input type="text" class="ghInput" id="ghPath" placeholder="พาธไฟล์ (ค่าเริ่มต้น data.csv)">
+  <input type="password" class="ghInput" id="ghToken" placeholder="Personal Access Token" autocomplete="off">
+  <p class="sub" id="githubVerifyStatus" style="font-family:var(--font-mono); font-size:11.5px; min-height:16px; margin:10px 0 0;"></p>
+  <div class="panel-actions" style="flex-direction:row; margin-top:10px;">
+    <button class="btn" id="githubVerifyBtn" type="button" style="flex:1;">ตรวจสอบ</button>
+    <button class="btn primary" id="githubSaveBtn" type="button" style="flex:1;">ตรวจสอบ &amp; บันทึก</button>
+  </div>
+  <p class="sub" style="font-size:11.5px; margin-top:12px;">Token จะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น แนะนำให้สร้าง Fine-grained token ที่จำกัดสิทธิ์เฉพาะ repo นี้ (Contents: Read and write) เท่านั้น</p>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -492,7 +502,7 @@ BE-008,ไขควงไฟฟ้า OSUKA OSHT2001,electronic tools,990,BE4,BE
 `;
 
 const DEFAULT_SETTINGS = {
-  theme:"dark-circuit", wallpaper:"circuit", wallpaperOpacity:0.8,
+  theme:"dark-circuit", wallpaper:"circuit", wallpaperOpacity:0.15,
   customWallpaperImage:null, density:"compact", updatedAt:null
 };
 
@@ -519,6 +529,7 @@ const state = {
   sortDir: "asc",
   filterCategory: "__all__",
   filterStatus: "__all__",
+  filterOwner: "__all__",
 };
 let dataSource = "embedded";
 let currentFileHandle = null;
@@ -705,6 +716,7 @@ function getFilteredSortedRows(){
   if(q) rows = rows.filter(r => HEADERS.some(h => String(r[h]||"").toLowerCase().includes(q)));
   if(state.filterCategory !== "__all__") rows = rows.filter(r => r["หมวด"] === state.filterCategory);
   if(state.filterStatus !== "__all__") rows = rows.filter(r => r["สถานะ"] === state.filterStatus);
+  if(state.filterOwner !== "__all__") rows = rows.filter(r => r["เจ้าของ"] === state.filterOwner);
   if(state.sortCol){
     const col = state.sortCol, dir = state.sortDir === "desc" ? -1 : 1;
     const numeric = NUMERIC_COLS.has(col);
@@ -725,15 +737,18 @@ function getFilteredSortedRows(){
 function populateFilterOptions(){
   const catSel = document.getElementById("filterCategory");
   const statSel = document.getElementById("filterStatus");
+  const ownerSel = document.getElementById("filterOwner");
   const cats = Array.from(new Set(state.rows.map(r=>r["หมวด"]).filter(Boolean))).sort();
   const stats = Array.from(new Set(state.rows.map(r=>r["สถานะ"]).filter(Boolean))).sort();
+  const owners = Array.from(new Set(state.rows.map(r=>r["เจ้าของ"]).filter(Boolean))).sort();
   const build = (sel, values, currentVal, allLabel) => {
     sel.innerHTML = `<option value="__all__">${allLabel}</option>` + values.map(v=>`<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
     sel.value = values.includes(currentVal) ? currentVal : "__all__";
   };
   build(catSel, cats, state.filterCategory, "ทุกหมวด");
   build(statSel, stats, state.filterStatus, "ทุกสถานะ");
-  state.filterCategory = catSel.value; state.filterStatus = statSel.value;
+  build(ownerSel, owners, state.filterOwner, "ทุกเจ้าของ");
+  state.filterCategory = catSel.value; state.filterStatus = statSel.value; state.filterOwner = ownerSel.value;
 }
 function escapeHtml(s){ return String(s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
@@ -922,6 +937,7 @@ function wireToolbarEvents(){
   document.getElementById("searchInput").addEventListener("input", renderBody);
   document.getElementById("filterCategory").addEventListener("change", e => { state.filterCategory = e.target.value; renderBody(); });
   document.getElementById("filterStatus").addEventListener("change", e => { state.filterStatus = e.target.value; renderBody(); });
+  document.getElementById("filterOwner").addEventListener("change", e => { state.filterOwner = e.target.value; renderBody(); });
   document.getElementById("addRowBtn").addEventListener("click", addRow);
 
   document.getElementById("exportCsvBtn").addEventListener("click", () => {
@@ -936,7 +952,7 @@ function wireToolbarEvents(){
     e.target.value = "";
   });
   document.getElementById("saveFileBtn").addEventListener("click", saveToFile);
-  document.getElementById("saveGithubBtn").addEventListener("click", saveToGithub);
+  document.getElementById("saveGithubBtn").addEventListener("click", openGithubModal);
 }
 
 function applyImportedCsvText(text){
@@ -1015,50 +1031,112 @@ async function openCsvFile(){
 function utf8ToBase64(str){
   return btoa(String.fromCharCode(...new TextEncoder().encode(str)));
 }
-async function saveToGithub(){
-  const cfg = githubConfig;
-  if(!cfg.owner || !cfg.repo || !cfg.token){
-    toast("กรุณาตั้งค่า GitHub (Owner/Repo/Token) ในหน้าตั้งค่าก่อน");
-    openSettings();
-    return;
+function readGithubFormFields(){
+  return {
+    owner: document.getElementById("ghOwner").value.trim(),
+    repo: document.getElementById("ghRepo").value.trim(),
+    branch: document.getElementById("ghBranch").value.trim() || "main",
+    path: document.getElementById("ghPath").value.trim() || "data.csv",
+    token: document.getElementById("ghToken").value.trim(),
+  };
+}
+function setGithubVerifyStatus(message, ok){
+  const el = document.getElementById("githubVerifyStatus");
+  el.textContent = message;
+  el.style.color = ok === true ? "var(--accent)" : (ok === false ? "var(--danger)" : "");
+}
+async function verifyGithubAccess(cfg){
+  if(!cfg.owner || !cfg.repo) return {ok:false, message:"กรุณากรอกชื่อ owner และชื่อ repo ให้ครบ"};
+  if(!cfg.token) return {ok:false, message:"กรุณากรอก Personal Access Token"};
+  try{
+    const res = await fetch(`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`, {
+      headers: {Authorization:`Bearer ${cfg.token}`, Accept:"application/vnd.github+json"},
+    });
+    if(res.status === 404) return {ok:false, message:"ไม่พบ repo นี้ หรือ token ไม่มีสิทธิ์เข้าถึง"};
+    if(res.status === 401) return {ok:false, message:"Token ไม่ถูกต้องหรือหมดอายุ"};
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      return {ok:false, message: err.message || `ตรวจสอบไม่สำเร็จ (${res.status})`};
+    }
+    const data = await res.json();
+    if(data.permissions && data.permissions.push === false){
+      return {ok:false, message:`เชื่อมต่อ ${data.full_name} ได้ แต่ token ไม่มีสิทธิ์เขียน (push)`};
+    }
+    return {ok:true, message:`เชื่อมต่อ ${data.full_name} สำเร็จ — พร้อมบันทึก`};
+  }catch(err){
+    return {ok:false, message:"เชื่อมต่อ GitHub ไม่สำเร็จ: " + (err.message || "")};
   }
+}
+async function commitCsvToGithub(cfg){
   const branch = cfg.branch || "main";
   const path = cfg.path || "data.csv";
   const apiUrl = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path.split("/").map(encodeURIComponent).join("/")}`;
-  const headers = {
-    Authorization: `Bearer ${cfg.token}`,
-    Accept: "application/vnd.github+json",
-  };
-  toast("กำลังบันทึกขึ้น GitHub...");
+  const headers = {Authorization:`Bearer ${cfg.token}`, Accept:"application/vnd.github+json"};
+  let sha;
+  const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, {headers});
+  if(getRes.ok){
+    const data = await getRes.json();
+    sha = data.sha;
+  } else if(getRes.status !== 404){
+    const errData = await getRes.json().catch(()=>({}));
+    throw new Error(errData.message || `GET ${getRes.status}`);
+  }
+  const putRes = await fetch(apiUrl, {
+    method: "PUT",
+    headers: Object.assign({"Content-Type":"application/json"}, headers),
+    body: JSON.stringify({
+      message: `Update ${path} via Broke Engineer inventory board`,
+      content: utf8ToBase64(toCSV(HEADERS, state.rows)),
+      branch,
+      sha,
+    }),
+  });
+  if(!putRes.ok){
+    const errData = await putRes.json().catch(()=>({}));
+    throw new Error(errData.message || `PUT ${putRes.status}`);
+  }
+}
+function openGithubModal(){
+  document.getElementById("ghOwner").value = githubConfig.owner || "";
+  document.getElementById("ghRepo").value = githubConfig.repo || "";
+  document.getElementById("ghBranch").value = githubConfig.branch || "main";
+  document.getElementById("ghPath").value = githubConfig.path || "data.csv";
+  document.getElementById("ghToken").value = githubConfig.token || "";
+  setGithubVerifyStatus("", null);
+  document.getElementById("githubModal").classList.add("open");
+  document.getElementById("githubOverlay").classList.add("open");
+}
+function closeGithubModal(){
+  document.getElementById("githubModal").classList.remove("open");
+  document.getElementById("githubOverlay").classList.remove("open");
+}
+async function onGithubVerifyClick(){
+  const cfg = readGithubFormFields();
+  setGithubVerifyStatus("กำลังตรวจสอบ...", null);
+  const result = await verifyGithubAccess(cfg);
+  setGithubVerifyStatus(result.message, result.ok);
+}
+async function onGithubSaveClick(){
+  const cfg = readGithubFormFields();
+  setGithubVerifyStatus("กำลังตรวจสอบ...", null);
+  const verify = await verifyGithubAccess(cfg);
+  if(!verify.ok){
+    setGithubVerifyStatus(verify.message, false);
+    toast("ตรวจสอบไม่ผ่าน — ยังไม่ได้บันทึก");
+    return;
+  }
+  githubConfig = cfg;
+  saveGithubConfig();
+  setGithubVerifyStatus("ตรวจสอบผ่าน — กำลังบันทึก...", true);
   try{
-    let sha;
-    const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, {headers});
-    if(getRes.ok){
-      const data = await getRes.json();
-      sha = data.sha;
-    } else if(getRes.status !== 404){
-      const errData = await getRes.json().catch(()=>({}));
-      throw new Error(errData.message || `GET ${getRes.status}`);
-    }
-
-    const putRes = await fetch(apiUrl, {
-      method: "PUT",
-      headers: Object.assign({"Content-Type":"application/json"}, headers),
-      body: JSON.stringify({
-        message: `Update ${path} via Broke Engineer inventory board`,
-        content: utf8ToBase64(toCSV(HEADERS, state.rows)),
-        branch,
-        sha,
-      }),
-    });
-    if(!putRes.ok){
-      const errData = await putRes.json().catch(()=>({}));
-      throw new Error(errData.message || `PUT ${putRes.status}`);
-    }
-    toast(`บันทึกทับ ${path} บน GitHub (${cfg.owner}/${cfg.repo}) แล้ว`);
+    await commitCsvToGithub(cfg);
+    setGithubVerifyStatus(`บันทึกทับ ${cfg.path} บน ${cfg.owner}/${cfg.repo} สำเร็จ`, true);
+    toast(`บันทึกทับ ${cfg.path} บน GitHub (${cfg.owner}/${cfg.repo}) แล้ว`);
+    closeGithubModal();
   }catch(err){
     console.error(err);
-    toast("บันทึกขึ้น GitHub ไม่สำเร็จ: " + (err.message || ""));
+    setGithubVerifyStatus("บันทึกไม่สำเร็จ: " + (err.message || ""), false);
+    toast("บันทึกขึ้น GitHub ไม่สำเร็จ");
   }
 }
 
@@ -1125,18 +1203,6 @@ function buildSettingsPanelStatic(){
   document.getElementById("densityComfortable").addEventListener("click", () => setDensity("comfortable"));
   document.getElementById("densityCompact").addEventListener("click", () => setDensity("compact"));
 
-  document.getElementById("saveGithubConfigBtn").addEventListener("click", () => {
-    githubConfig = {
-      owner: document.getElementById("ghOwner").value.trim(),
-      repo: document.getElementById("ghRepo").value.trim(),
-      branch: document.getElementById("ghBranch").value.trim() || "main",
-      path: document.getElementById("ghPath").value.trim() || "data.csv",
-      token: document.getElementById("ghToken").value.trim(),
-    };
-    saveGithubConfig();
-    toast("บันทึกการตั้งค่า GitHub แล้ว");
-  });
-
   document.getElementById("resetDefaultsBtn").addEventListener("click", async () => {
     if(!confirm("รีเซ็ตข้อมูลอุปกรณ์และธีมทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่? การเปลี่ยนแปลงที่บันทึกไว้ในเบราว์เซอร์นี้จะหายไป")) return;
     localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_SETTINGS);
@@ -1161,11 +1227,6 @@ function updateSettingsPanelUI(){
   document.getElementById("opacityRange").value = state.settings.wallpaperOpacity ?? 0.8;
   document.getElementById("densityComfortable").classList.toggle("active", state.settings.density !== "compact");
   document.getElementById("densityCompact").classList.toggle("active", state.settings.density === "compact");
-  document.getElementById("ghOwner").value = githubConfig.owner || "";
-  document.getElementById("ghRepo").value = githubConfig.repo || "";
-  document.getElementById("ghBranch").value = githubConfig.branch || "main";
-  document.getElementById("ghPath").value = githubConfig.path || "data.csv";
-  document.getElementById("ghToken").value = githubConfig.token || "";
 }
 
 function openSettings(){
@@ -1272,10 +1333,15 @@ async function init(){
   document.getElementById("noteModalClose").addEventListener("click", () => closeNoteModal(false));
   document.getElementById("noteOverlay").addEventListener("click", () => closeNoteModal(false));
 
+  document.getElementById("githubModalClose").addEventListener("click", closeGithubModal);
+  document.getElementById("githubOverlay").addEventListener("click", closeGithubModal);
+  document.getElementById("githubVerifyBtn").addEventListener("click", onGithubVerifyClick);
+  document.getElementById("githubSaveBtn").addEventListener("click", onGithubSaveClick);
+
   document.addEventListener("keydown", e => {
-    if(e.key === "Escape" && document.getElementById("noteModal").classList.contains("open")){
-      closeNoteModal(false);
-    }
+    if(e.key !== "Escape") return;
+    if(document.getElementById("noteModal").classList.contains("open")) closeNoteModal(false);
+    if(document.getElementById("githubModal").classList.contains("open")) closeGithubModal();
   });
 
   document.addEventListener("keydown", e => {
