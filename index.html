@@ -458,6 +458,17 @@
   </div>
 </div>
 
+<div class="overlay" id="deleteOverlay"></div>
+<div class="note-modal" id="deleteModal">
+  <button class="panel-close" id="deleteModalClose" type="button" aria-label="ปิด">&times;</button>
+  <h2>ลบรายการ</h2>
+  <p class="sub" id="deleteModalText">ลบรายการนี้ออกจากคลังใช่หรือไม่?</p>
+  <div class="panel-actions" style="flex-direction:row;">
+    <button class="btn" id="deleteModalCancel" type="button" style="flex:1;">ยกเลิก</button>
+    <button class="btn primary" id="deleteModalConfirm" type="button" style="flex:1; background:var(--danger); border-color:var(--danger);">ลบ</button>
+  </div>
+</div>
+
 <div class="overlay" id="githubOverlay"></div>
 <div class="note-modal" id="githubModal">
   <button class="panel-close" id="githubModalClose" type="button" aria-label="ปิด">&times;</button>
@@ -473,7 +484,6 @@
     <button class="btn" id="githubVerifyBtn" type="button" style="flex:1;">ตรวจสอบ</button>
     <button class="btn primary" id="githubSaveBtn" type="button" style="flex:1;">ตรวจสอบ &amp; บันทึก</button>
   </div>
-  <p class="sub" style="font-size:11.5px; margin-top:12px;">Token จะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น แนะนำให้สร้าง Fine-grained token ที่จำกัดสิทธิ์เฉพาะ repo นี้ (Contents: Read and write) เท่านั้น</p>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -845,13 +855,26 @@ function addRow(){
   });
   toast("เพิ่มอุปกรณ์ใหม่แล้ว — เริ่มพิมพ์ได้เลย");
 }
+let pendingDeleteUid = null;
 function deleteRow(rowUid){
   const row = state.rows.find(r=>r._uid===rowUid);
   const name = row ? (row["ชื่ออุปกรณ์"]||row["ID"]) : "รายการนี้";
-  if(!confirm(`ลบ "${name}" ออกจากคลังใช่หรือไม่?`)) return;
-  state.rows = state.rows.filter(r=>r._uid!==rowUid);
+  pendingDeleteUid = rowUid;
+  document.getElementById("deleteModalText").textContent = `ลบ "${name}" ออกจากคลังใช่หรือไม่?`;
+  document.getElementById("deleteModal").classList.add("open");
+  document.getElementById("deleteOverlay").classList.add("open");
+}
+function closeDeleteModal(){
+  document.getElementById("deleteModal").classList.remove("open");
+  document.getElementById("deleteOverlay").classList.remove("open");
+  pendingDeleteUid = null;
+}
+function confirmDelete(){
+  if(!pendingDeleteUid) return;
+  state.rows = state.rows.filter(r=>r._uid!==pendingDeleteUid);
   saveData(); populateFilterOptions(); renderBody();
   toast("ลบรายการแล้ว");
+  closeDeleteModal();
 }
 
 /* ============ CELL EDIT NAVIGATION ============ */
@@ -970,7 +993,7 @@ function updateFileBindStatus(){
   if(!el) return;
   if(currentFileHandle) el.textContent = `ผูกไฟล์อยู่: ${currentFileHandle.name} — กด "บันทึกไฟล์" จะบันทึกทับไฟล์นี้`;
   else if(!supportsFSAccess) el.textContent = "เบราว์เซอร์นี้ไม่รองรับการบันทึกทับไฟล์โดยตรง จะดาวน์โหลดไฟล์ใหม่แทน";
-  else el.textContent = "ยังไม่ได้ผูกไฟล์ — กด \"บันทึกไฟล์\" ครั้งแรกเพื่อเลือกตำแหน่งไฟล์";
+  else el.textContent = "";
 }
 async function ensureWritePermission(handle){
   const opts = {mode:"readwrite"};
@@ -1256,7 +1279,6 @@ function openNoteModal(rowUid){
   document.getElementById("noteTextarea").value = row[NOTES_COL] || "";
   document.getElementById("noteModal").classList.add("open");
   document.getElementById("noteOverlay").classList.add("open");
-  requestAnimationFrame(() => document.getElementById("noteTextarea").focus());
 }
 function closeNoteModal(save){
   if(save && currentNoteRowUid){
@@ -1338,10 +1360,16 @@ async function init(){
   document.getElementById("githubVerifyBtn").addEventListener("click", onGithubVerifyClick);
   document.getElementById("githubSaveBtn").addEventListener("click", onGithubSaveClick);
 
+  document.getElementById("deleteModalCancel").addEventListener("click", closeDeleteModal);
+  document.getElementById("deleteModalClose").addEventListener("click", closeDeleteModal);
+  document.getElementById("deleteOverlay").addEventListener("click", closeDeleteModal);
+  document.getElementById("deleteModalConfirm").addEventListener("click", confirmDelete);
+
   document.addEventListener("keydown", e => {
     if(e.key !== "Escape") return;
     if(document.getElementById("noteModal").classList.contains("open")) closeNoteModal(false);
     if(document.getElementById("githubModal").classList.contains("open")) closeGithubModal();
+    if(document.getElementById("deleteModal").classList.contains("open")) closeDeleteModal();
   });
 
   document.addEventListener("keydown", e => {
